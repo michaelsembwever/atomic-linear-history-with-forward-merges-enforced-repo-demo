@@ -1,0 +1,7 @@
+
+
+# List of allowed branches for merge commits
+MAINLINE_BRANCHES=("release-1.x" "release-2.x" "trunk")
+REAL_ORIGIN='michaelsembwever/atomic-linear-history-with-forward-merges-enforced-repo-demo'
+# Determine the upstream remote name by matching the URL
+UPSTREAM_REMOTE=$(git remote -v | grep "${REAL_ORIGIN}" | awk '{print $1}' | head -n 1)

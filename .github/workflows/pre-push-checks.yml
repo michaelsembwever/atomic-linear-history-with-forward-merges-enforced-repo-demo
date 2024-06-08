@@ -1,0 +1,59 @@
+name: Pre-push Checks
+
+on:
+  pull_request:
+    types: [opened,reopened,synchronize,edited]
+
+  # if you want "Require status checks to pass"
+  #  you just need to push those commits to any non-protected branch first (i.e. no PR needed)
+  push:
+    branches-ignore:
+      - 'trunk'
+      - 'releases-*.x'
+
+jobs:
+  pre_push:
+    name: Pre-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v3
+
+      - name: run pre-push checks
+        env:
+          GITHUB_HEAD_SHA: ${{ github.sha }}
+          # useful docs
+          # https://docs.github.com/en/actions/learn-github-actions/variables
+          # https://www.kenmuse.com/blog/the-many-shas-of-a-github-pull-request/
+          GITHUB_PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          GITHUB_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}  # can differ from GITHUB_SHA
+          GITHUB_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          # GITHUB_HEAD_REF is actually the base ref (wtf) – https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables
+        run: |
+          set -x
+          git fetch
+          
+          if [ -n "${GITHUB_PR_HEAD_REF}" ] ; then
+            GITHUB_HEAD_REF="$GITHUB_PR_HEAD_REF"
+          else
+            GITHUB_HEAD_REF="$(git rev-parse --abbrev-ref HEAD)"
+          fi
+          if [ -n "${GITHUB_PR_HEAD_SHA}" ] ; then
+            GITHUB_HEAD_SHA="${GITHUB_PR_HEAD_SHA}"
+          else
+            GITHUB_HEAD_SHA="${GITHUB_SHA}"
+          fi
+          if [ -n "${GITHUB_PR_BASE_SHA}" ] ; then
+            GITHUB_BASE_SHA="${GITHUB_PR_BASE_SHA}"
+          else
+            GITHUB_BASE_REF="trunk"
+            GITHUB_BASE_SHA="$(git rev-parse origin/trunk)"
+          fi
+          
+          TMPFILE=$(mktemp -t git-hook-input.XXXXXXXX)
+          echo "${GITHUB_HEAD_REF} ${GITHUB_HEAD_SHA} refs/heads/${GITHUB_BASE_REF} ${GITHUB_BASE_SHA}" > ${TMPFILE}
+          for script in $(find "buildSrc/git/git-hooks/pre-push" -name '*.sh' | perl -e "print sort{(split '/', \$a)[-1] <=> (split '/', \$b)[-1]}<>"); do
+            echo "checking $(basename ${script})"
+            cat ${TMPFILE} | bash -x "${script}" origin "https://github.com/michaelsembwever/atomic-linear-history-with-forward-merges-enforced-repo-demo"
+          done
