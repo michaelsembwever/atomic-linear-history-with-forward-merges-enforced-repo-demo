@@ -1,0 +1,3 @@
+task initProject(type: Exec) {
+  commandLine 'sh', 'buildSrc/git/install-git-defaults.sh'
+}
