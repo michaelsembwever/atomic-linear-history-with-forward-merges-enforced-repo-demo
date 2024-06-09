@@ -1,4 +1,7 @@
-#!/bin/sh
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
 
 #
 # Called by "git
@@ -28,8 +31,7 @@ url="$2"
 ### constants ###
 
 # List of allowed branches for merge commits
-ALLOWED_MERGE_BRANCHES=("release-1.x" "release-2.x" "trunk")
-
+MAINLINE_BRANCHES=("release-1.x" "release-2.x" "trunk")
 REAL_ORIGIN='michaelsembwever/test-git-hooks'
 # Determine the upstream remote name by matching the URL
 UPSTREAM_REMOTE=$(git remote -v | grep "${REAL_ORIGIN}" | awk '{print $1}' | head -n 1)
@@ -42,7 +44,7 @@ is_commit_in_allowed_branches() {
   commit=$1
   base_commit=$2
   # check if commit already exists upstream in any of the allowed branches
-  for branch in "${ALLOWED_MERGE_BRANCHES[@]}" ; do
+  for branch in "${MAINLINE_BRANCHES[@]}" ; do
     if git merge-base --is-ancestor "${commit}" "${UPSTREAM_REMOTE}/${branch}" ; then
       return 0
     fi
@@ -62,14 +64,14 @@ check_ancestors() {
   branch=$(git branch --contains "${commit}" --no-color --no-column | sed 's/ //g')
   # recurse through merge commit's ancestry of second parents
   while [[ $(git rev-list --parents -n 1 "${commit}" | wc -w) -gt 2 ]] ; do
+    # check if the second parent commit is in allowed branches or is the base commit
+    if ! is_commit_in_allowed_branches "${commit}" "${base_commit}" ; then
+      echo "Merge commit (${commit}) not on branches allowed for merge-tracking."
+      exit 2
+    fi
     # Check the second parent belongs in an allowed branch
     commit=$(git rev-list --parents -n 1 "${commit}" | awk '{print $3}')
     branch=$(git branch --contains "${commit}" --no-color --no-column | sed 's/ //g')
-    # check if the second parent commit is in allowed branches or is the base commit
-    if ! is_commit_in_allowed_branches "${commit}" "${base_commit}" ; then
-      echo "Merge commit ${commit} references a branch not in the allowed list of branches to merge-track: ${branch}"
-      exit 2
-    fi
   done
   # check if the non-merge commit belongs to an allowed branch,
   #  and already exists or is being pushed alone to its base branch in this push
@@ -93,28 +95,47 @@ if echo "${url}" | grep -q "${REAL_ORIGIN}" || git remote get-url "${remote}" | 
   remote_oids=()
 
   while read local_ref local_oid remote_ref remote_oid ; do
-    if [ "${local_oid}" != "${zero}" ] ; then
-      # find the base_commit
-      if [[ $(git rev-list --parents -n 1 "${local_oid}" | wc -w) -eq 2 ]]; then
-        if [ "" != "${base_commit}" ] ; then
-          echo "Cannot push multiple branches with new (non-forward-merged) commits (${base_commit}, ${local_oid})"
-          exit 1
+    # this script only enforces pushes to mainline branches
+    if [[ $(echo "${MAINLINE_BRANCHES[@]}" | fgrep -w ${remote_ref/refs\/heads\//}) ]] ; then
+      if [ "${local_oid}" != "${zero}" ] ; then
+        # find the base_commit
+        if [[ $(git rev-list --parents -n 1 "${local_oid}" | wc -w) -eq 2 ]]; then
+          if [ "" != "${base_commit}" ] ; then
+            echo "Multiple branches with new (non-forward-merged) commits (${base_commit}, ${local_oid})"
+            exit 1
+          fi
+          base_commit="${local_oid}"
+          # check there's no merge commits parents of this…
+          if [ -n "$(git rev-list --merges ${base_commit} ${remote_oid})" ] ; then
+            echo >&2 "Found merge commit parents before ${base_commit}, merge-tracking commits must come last"
+            exit 4
+          fi
         fi
-        base_commit="${local_oid}"
+        local_oids+=("${local_oid}")
+        remote_oids+=("${remote_oid}")
       fi
-      local_oids+=("${local_oid}")
-      remote_oids+=("${remote_oid}")
     fi
   done
 
   # Check each new local_oid
   i=0
-  for commit in ${local_oids} ; do
-    # Check if the commit is a merge commit
-    if [[ $(git rev-list --parents -n 1 "${commit}" | wc -w) -gt 2 ]]; then
-      # Check if all non-merge parent commits are already in allowed branches
-      check_ancestors "${remote_oids[$i]}" "${commit}" "${base_commit}"
+  for local_oid in ${local_oids} ; do
+    # check all commit parent to local_oid back to branch base
+    if [ "${remote_oid[$i]}" = "${zero}" ] ; then
+      # New branch, examine all commits
+      range="${local_oid}"
+    else
+      # Update to existing branch, examine new commits
+      range="${remote_oid[$i]}..${local_oid}"
     fi
+    local_oid_commits=$(git rev-list -n 1 "${range}")
+    for commit in ${local_oid_commits} ; do
+      # Check if the commit is a merge commit
+      if [[ $(git rev-list --parents -n 1 "${commit}" | wc -w) -gt 2 ]]; then
+        # Check if all non-merge parent commits are already in allowed branches
+        check_ancestors "${remote_oids[$i]}" "${commit}" "${base_commit}"
+      fi
+    done
     i=$((i+1))
   done
 

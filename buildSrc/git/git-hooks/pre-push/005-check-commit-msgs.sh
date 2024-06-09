@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -o errexit
+
 #
 # Called by "git
 # push" after it has checked the remote status, but before anything has been
@@ -29,6 +31,8 @@ url="$2"
 
 bad_words="WIP|SQUASH|THROWAWAY"
 
+# List of allowed branches for merge commits
+MAINLINE_BRANCHES=("release-1.x" "release-2.x" "trunk")
 REAL_ORIGIN='michaelsembwever/test-git-hooks'
 # Determine the upstream remote name by matching the URL
 UPSTREAM_REMOTE=$(git remote -v | grep "${REAL_ORIGIN}" | awk '{print $1}' | head -n 1)
@@ -42,21 +46,23 @@ if echo "${url}" | grep -q "${REAL_ORIGIN}" || git remote get-url "${remote}" | 
   zero=$(git hash-object --stdin </dev/null | tr '[0-9a-f]' '0')
 
   while read local_ref local_oid remote_ref remote_oid ; do
+    # this script only enforces pushes to mainline branches
+    if [[ $(echo "${MAINLINE_BRANCHES[@]}" | fgrep -w ${remote_ref/refs\/heads\//}) ]] ; then
+      if [ "${local_oid}" != "${zero}" ] ; then
+        if [ "${remote_oid}" = "${zero}" ] ; then
+          # New branch, examine all commits
+          range="${local_oid}"
+        else
+          # Update to existing branch, examine new commits
+          range="${remote_oid}..${local_oid}"
+        fi
 
-    if [ "${local_oid}" != "${zero}" ] ; then
-      if [ "${remote_oid}" = "${zero}" ] ; then
-        # New branch, examine all commits
-        range="${local_oid}"
-      else
-        # Update to existing branch, examine new commits
-        range="${remote_oid}..${local_oid}"
-      fi
-
-      # Check commits
-      bad_commits=$(git rev-list -n 1 --regexp-ignore-case --extended-regexp --grep="${bad_words}" "${range}")
-      if [ -n "${bad_commits}" ] ; then
-        echo >&2 "Found ${bad_words} commit in ${bad_commits}, not pushing"
-        exit 1
+        # Check commits
+        bad_commits=$(git rev-list -n 1 --regexp-ignore-case --extended-regexp --grep="${bad_words}" "${range}")
+        if [ -n "${bad_commits}" ] ; then
+          echo >&2 "Found ${bad_words} commit in ${bad_commits}, not acceptable for the mainline branch ${remote_ref}"
+          exit 1
+        fi
       fi
     fi
   done
