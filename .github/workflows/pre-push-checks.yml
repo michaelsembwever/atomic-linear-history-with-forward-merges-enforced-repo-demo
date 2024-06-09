@@ -1,0 +1,23 @@
+name: Pre-push Checks
+
+on:
+  pull_request:
+    types: [synchronize,edited]
+
+jobs:
+  pre_push:
+    name: Pre-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v3
+
+      - name: run pre-push checks
+        run: |
+          TMPFILE=$(mktemp -t git-hook-input.XXXXXXXX)
+          echo "$(git symbolic-ref HEAD) $(git rev-parse HEAD) refs/heads/${GITHUB_HEAD_REF} $(git rev-parse ${GITHUB_HEAD_REF})" > $TMPFILE
+          for script in $(find "buildSrc/git/git-hooks/pre-push" -name '*.sh' | perl -e "print sort{(split '/', \$a)[-1] <=> (split '/', \$b)[-1]}<>"); do
+            echo "checking $(basename $script)"
+            cat $TMPFILE | "$script" origin "https://github.com/michaelsembwever/test-git-hooks"
+          done

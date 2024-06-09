@@ -28,7 +28,7 @@ url="$2"
 ### constants ###
 
 # List of allowed branches for merge commits
-ALLOWED_MERGE_BRANCHES=("5.1-dev" "6.8-dev" "6.9-dev")
+ALLOWED_MERGE_BRANCHES=("release-1.x" "release-2.x" "trunk")
 
 REAL_ORIGIN='michaelsembwever/test-git-hooks'
 # Determine the upstream remote name by matching the URL
