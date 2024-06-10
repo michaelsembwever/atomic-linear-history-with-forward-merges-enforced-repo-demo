@@ -11,3 +11,32 @@ Provides
 - automatically install git hooks
 - pre-push git hook to prevent commit messages with bad words going into upstream mainlines
 - pre-push git hook to ensure forward merges reference the original mainline non-merged commit
+- github action to run all pre-push hook checks
+
+
+Forward-merging on the command line:
+```
+git switch release-1.x
+git commit <something_already_reviewed>
+git switch release-2.x
+git merge release-1.x --log
+git switch trunk
+git merge release-2.x --log
+git push --atomic origin release-1.x release-2.x trunk
+```
+
+Forward-merging in GitHub Pull Requests:
+```
+git switch some-dev-branch-off-release-1.x
+git commit <something>
+git push origin some-dev-branch-off-release-1.x (against release-1.x)
+# create the pull request
+git switch some-dev-branch-off-release-2.x
+git merge some-dev-branch-off-release-1.x --log
+git push origin some-dev-branch-off-release-2.x
+# create the pull request (against release-2.x)
+git switch some-dev-branch-off-trunk
+git merge some-dev-branch-off-release-2.x --log
+git push origin some-dev-branch-off-trunk
+# create the pull request (against trunk)
+```
