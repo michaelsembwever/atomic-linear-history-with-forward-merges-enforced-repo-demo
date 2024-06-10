@@ -27,5 +27,5 @@ jobs:
           echo "${GITHUB_REF} ${GITHUB_HEAD_SHA} refs/heads/${GITHUB_BASE_REF} ${GITHUB_BASE_SHA}" > ${TMPFILE}
           for script in $(find "buildSrc/git/git-hooks/pre-push" -name '*.sh' | perl -e "print sort{(split '/', \$a)[-1] <=> (split '/', \$b)[-1]}<>"); do
             echo "checking $(basename ${script})"
-            cat ${TMPFILE} | "${script}" origin "https://github.com/michaelsembwever/test-git-hooks"
+            cat ${TMPFILE} | sh -x "${script}" origin "https://github.com/michaelsembwever/test-git-hooks"
           done
