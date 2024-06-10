@@ -1,8 +1,10 @@
 name: Pre-push Checks
 
 on:
-  pull_request:
-    types: [opened,reopened,synchronize,edited]
+  push:
+    branches-ignore:
+      - 'trunk'
+      - 'releases-*.x'
 
 jobs:
   pre_push:
