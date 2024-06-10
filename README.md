@@ -29,8 +29,8 @@ Forward-merging in GitHub Pull Requests:
 ```
 git switch some-dev-branch-off-release-1.x
 git commit <something>
-git push origin some-dev-branch-off-release-1.x (against release-1.x)
-# create the pull request
+git push origin some-dev-branch-off-release-1.x
+# create the pull request (against release-1.x)
 git switch some-dev-branch-off-release-2.x
 git merge some-dev-branch-off-release-1.x --log
 git push origin some-dev-branch-off-release-2.x
