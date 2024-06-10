@@ -2,7 +2,7 @@ name: Pre-push Checks
 
 on:
   pull_request:
-    types: [synchronize,edited]
+    types: [opened,reopened,synchronize,edited]
 
 jobs:
   pre_push:
@@ -17,7 +17,6 @@ jobs:
         env:
           # https://www.kenmuse.com/blog/the-many-shas-of-a-github-pull-request/
           GITHUB_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          #GITHUB_BASE_REF: ${{ github.event.pull_request.base.ref }}
           GITHUB_REF: ${{ github.event.pull_request.head.ref }}
           GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha }}  # differs from GITHUB_SHA
           # GITHUB_HEAD_REF is actually the base ref (wtf) – https://docs.github.com/en/actions/learn-github-actions/variables#default-environment-variables
